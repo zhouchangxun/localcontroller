@@ -29,7 +29,10 @@ import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.matc
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.match.entry.value.grouping.match.entry.value.InPortCaseBuilder;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.match.entry.value.grouping.match.entry.value.in.port._case.InPortBuilder;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.match.grouping.MatchBuilder;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.protocol.rev130731.BarrierInputBuilder;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.protocol.rev130731.BarrierOutput;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.protocol.rev130731.FlowModInputBuilder;
+import org.opendaylight.yangtools.yang.common.RpcResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +41,8 @@ import java.net.InetAddress;
 import java.util.Date;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 public class LocalController {
     private static final Logger LOG = LoggerFactory.getLogger(LocalController.class);
@@ -175,7 +180,9 @@ public class LocalController {
         if (!connectActive) /* ovs-vsctl set-controller br-int tcp:10.166.228.3:6634 */ {
             SwitchConnectionProviderImpl sc = new SwitchConnectionProviderImpl();
             ConnectionConfigurationImpl cc = new ConnectionConfigurationImpl(
-                    listenAddress, ofPort, TransportProtocol.TCP, 30, false);
+                    listenAddress, ofPort, TransportProtocol.TCP, 30, false/* Not use barrier which cause much delay,
+                                                                            * use only when needed.
+                                                                            * */);
 
             sc.setConfiguration(cc);
             sc.setSwitchConnectionHandler(ofConnectionManager);
@@ -258,11 +265,18 @@ public class LocalController {
                         final long OUTPUT_PORT = 0xffffffffL;
                         final long OUTPUT_GROUP = 0xffffffffL;
                         Date date = new Date();
+                        final int FLOW_NUM = 5000;
+                        final long BARRIER_TIMEOUT = 5000;
+                        final TimeUnit BARRIER_TIMEOUT_UNIT = TimeUnit.MILLISECONDS;
 
-                        LOG.info("FlowMod performance test start at" + date.getTime());
+                        //long startTime = date.getTime();
+                        // Same date instance getTime call will return same timestamp, call System
+                        // interface directly...
+                        long startTime = System.currentTimeMillis();
+                        LOG.info("FlowMod performance test start at" + startTime);
                         // If the connection is active, push flows to the switch...
                         int i = 0;
-                        for (; i < 1000; i++) {
+                        for (; i < FLOW_NUM; i++) {
                             FlowModInputBuilder fmInputBuild = new FlowModInputBuilder();
                             fmInputBuild.setXid(new Long((long) i));
                             fmInputBuild.setCookie(new BigInteger(new Long((long) i).toString()));
@@ -295,10 +309,33 @@ public class LocalController {
                             // XXX: Perhaps here we should have a lock when operating on the connection adapter...
                             // For perftest this is enough.
                             ofConnectionManager.getActiveConnectionAdapter().flowMod(fmInputBuild.build());
+                            if (i%1000 == 0) {
+                                try {
+                                    // Yield some time to let ChannelOutput queue to drain...
+                                    Thread.sleep(50);
+                                } catch (InterruptedException e) {
+                                    LOG.error("FlowMod performance test is interruppted...");
+                                }
+                            }
                         }
 
+                        // Send barrier request and wait for reply to ensure flow programmed.
+                        BarrierInputBuilder barrierInputBuilder = new BarrierInputBuilder();
+                        barrierInputBuilder.setVersion(OF_VERSION);
+                        barrierInputBuilder.setXid((long)FLOW_NUM);
+                        Future<RpcResult<BarrierOutput>> barrierResult =
+                                ofConnectionManager.getActiveConnectionAdapter().barrier(barrierInputBuilder.build());
+                        try {
+                            RpcResult<BarrierOutput> output = barrierResult.get(BARRIER_TIMEOUT, BARRIER_TIMEOUT_UNIT);
+                            //long finishTime = date.getTime();
+                            long finishTime = System.currentTimeMillis();
+                            LOG.info("Receive barrier reply with xid " + output.getResult().getXid() + " @ " + finishTime);
+                            LOG.info("FlowMod performance test finished at " + finishTime);
+                            LOG.info("FlowMod rate is " + 1000*((float)FLOW_NUM)/(float)(finishTime - startTime));
+                        } catch (Exception e) {
+                            LOG.error("Wait barrier reply timeout... can't obtain FlowMod performance");
+                        }
 
-                        // Finished test...
                         break;
                     } else {
                         LOG.info("Switch openflow connection is not active, sleeping...");
