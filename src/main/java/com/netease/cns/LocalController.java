@@ -5,7 +5,6 @@
 package com.netease.cns;
 
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.netease.cns.transport.UnixChannelInitializer;
@@ -23,8 +22,6 @@ import org.opendaylight.openflowjava.protocol.impl.deserialization.DeserializerR
 import org.opendaylight.openflowjava.protocol.impl.serialization.SerializationFactory;
 import org.opendaylight.openflowjava.protocol.impl.serialization.SerializerRegistryImpl;
 import org.opendaylight.ovsdb.lib.OvsdbClient;
-import org.opendaylight.ovsdb.lib.OvsdbConnectionListener;
-import org.opendaylight.ovsdb.lib.impl.OvsdbConnectionService;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.FlowModCommand;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.FlowModFlags;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.PortNumber;
@@ -47,7 +44,6 @@ import org.slf4j.LoggerFactory;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.util.Date;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -56,6 +52,7 @@ public class LocalController {
     private static final Logger LOG = LoggerFactory.getLogger(LocalController.class);
     private static ListeningExecutorService pool = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(10));
     private static OFConnectionManager ofConnectionManager = new OFConnectionManager();
+    private static OVSDBConnectionManager ovsdbConnectionManager = new OVSDBConnectionManager();
 
     public static void main(String[] args) throws Exception {
         final int ofPort = 6633;
@@ -114,7 +111,7 @@ public class LocalController {
                 // depend on the echo request as a indication of establishment of
                 // connection.
                 // Refer to : bridge_ofproto_controller_for_mgmt in bridge.c
-                EpollEventLoopGroup workerGroup = new EpollEventLoopGroup();
+                EpollEventLoopGroup workerGroup = new EpollEventLoopGroup(5);
                 UnixConnectionInitializer unixConnectionInitializer = new UnixConnectionInitializer(workerGroup);
                 UnixChannelInitializer unixChannelInitializer = new UnixChannelInitializer();
                 unixConnectionInitializer.setChannelInitializer(unixChannelInitializer);
@@ -125,43 +122,6 @@ public class LocalController {
                 unixConnectionInitializer.initiateConnection(unixServerPath);
             }
         }
-
-        // 2. start ovsdb controller to listen local ovsdb-server to connect.
-        //    this means we start in passive mode, however, the library also
-        //    support active mode, we can try that either.
-
-        // TODO: if we make active connecton for openflow, we'd better also
-        // make active connection to ovsdb to make the two connection consistent.
-
-        if (!connectActive) /* ovs-vsctl set-manager tcp:10.166.228.3:6634 */ {
-            OvsdbConnectionService ovsdbManager = new OvsdbConnectionService();
-            OvsdbConnectionListenerImpl clientListener = new OvsdbConnectionListenerImpl();
-            ovsdbManager.registerConnectionListener(clientListener);
-            ovsdbManager.startOvsdbManager(6634);
-        } else /* ovs-vsctl set-manager ptcp:6634 */ {
-            OvsdbConnectionService ovsdbManager = new OvsdbConnectionService();
-            OvsdbConnectionListenerImpl clientListener = new OvsdbConnectionListenerImpl();
-            OvsdbClient activeClient = ovsdbManager.connect(connectAddress, ovsdbPort);
-            if (activeClient != null) {
-                LOG.info("Connection to ovsdb server actively successfully...");
-                final ListenableFuture databases_future = activeClient.getDatabases();
-                databases_future.addListener(new Runnable() {
-                    public void run() {
-                        try {
-                            LOG.info("The ovsdb instance hold: " + databases_future.get());
-                        } catch (InterruptedException e) {
-                            LOG.error("The get database rpc is interrupted...");
-                        } catch (ExecutionException e) {
-                            LOG.error("Exception in task");
-                        }
-                    }
-                }, pool);
-            }
-            else {
-                LOG.error("Connection to ovsdb server actively failed...");
-            }
-        }
-
 
         // Start a runnable which will push 1k flows once connection active,
         // we will then benchmark performance by using barrier.
@@ -264,6 +224,60 @@ public class LocalController {
             }
         });
 
+        // 2. start ovsdb controller to listen local ovsdb-server to connect.
+        //    this means we start in passive mode, however, the library also
+        //    support active mode, we can try that either.
+
+        // TODO: if we make active connecton for openflow, we'd better also
+        // make active connection to ovsdb to make the two connection consistent.
+
+        if (!connectActive) /* ovs-vsctl set-manager tcp:10.166.228.3:6634 */ {
+            ovsdbConnectionManager.getOvsdbConnectionServer().registerConnectionListener(ovsdbConnectionManager);
+            ovsdbConnectionManager.getOvsdbConnectionServer().startOvsdbManager(6634);
+        } else /* ovs-vsctl set-manager ptcp:6634 */ {
+            OvsdbClient activeClient = ovsdbConnectionManager.getOvsdbConnectionServer().connect(connectAddress, ovsdbPort);
+            if (activeClient != null) {
+                LOG.info("Connection to ovsdb server actively successfully...");
+                ovsdbConnectionManager.setActiveOvsdbClient(activeClient);
+            } else {
+                LOG.error("Connection to ovsdb server actively failed...");
+            }
+        }
+
+        // Start a runnable which will push 1k flows once connection active,
+        // we will then benchmark performance by using barrier.
+        pool.submit(new Runnable() {
+            public void run() {
+                while (true) {
+                    if (ovsdbConnectionManager.getActiveOvsdbClient() != null) {
+                        OvsdbClient client = ovsdbConnectionManager.getActiveOvsdbClient();
+
+                        LOG.info("The OVSDB connection is active, now start test OVSDB performance...");
+
+                        final int INTERNAL_PORT_NUM = 5000;
+
+                        //long startTime = date.getTime();
+                        // Same date instance getTime call will return same timestamp, call System
+                        // interface directly...
+                        long startTime = System.currentTimeMillis();
+                        LOG.info("OVSDB performance test start at" + startTime);
+                        int i = 0;
+                        for (; i < INTERNAL_PORT_NUM; i++) {
+                        }
+
+                        break;
+                    } else {
+                        LOG.info("No active OVSDB connection, sleeping...");
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            LOG.error("OVSDB performance test is interruppted...");
+                        }
+                    }
+                }
+            }
+        });
+
         while (true) {
             LOG.info("Master thread is running....");
             Thread.sleep(1000);
@@ -346,33 +360,6 @@ public class LocalController {
 
         public boolean useBarrier() {
             return useBarrier;
-        }
-    }
-
-    static class OvsdbConnectionListenerImpl implements OvsdbConnectionListener {
-        OvsdbClient activeClient = null;
-
-        public void connected(OvsdbClient client) {
-            LOG.info("an ovsdb instanced connected...");
-            activeClient = client;
-            final ListenableFuture databases_future = activeClient.getDatabases();
-            databases_future.addListener(new Runnable() {
-                public void run() {
-                    try {
-                        LOG.info("The ovsdb instance hold: " + databases_future.get());
-                    } catch (InterruptedException e) {
-                        LOG.error("The get database rpc is interrupted...");
-                    } catch (ExecutionException e) {
-                        LOG.error("Exception in task");
-                    }
-                }
-            }, pool);
-
-        }
-
-        public void disconnected(OvsdbClient client) {
-            LOG.info("an ovsdb instanced say byebye...");
-            activeClient = null;
         }
     }
 }

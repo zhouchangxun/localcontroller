@@ -20,6 +20,8 @@ public class OFConnectionManager implements OpenflowProtocolListener, SwitchConn
     private static final Logger LOG = LoggerFactory.getLogger(OFConnectionManager.class);
     private ConnectionAdapter activeConnectionAdapter = null;
     private boolean connectionActive = false;
+    // TODO implement a storage that manager all the bridges because each one need to be
+    //      managed through unix socket...
 
     public void onConnectionReady() {
 
