@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <!-- check whether this is needed
     <parent>
@@ -14,6 +14,16 @@
     <groupId>com.netease.cns</groupId>
     <artifactId>localcontroller</artifactId>
     <version>1.0-SNAPSHOT</version>
+
+    <build>
+        <extensions>
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.2.3.Final</version>
+            </extension>
+        </extensions>
+    </build>
 
     <dependencies>
         <dependency>
@@ -30,6 +40,16 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
             <version>1.7.21</version>
+        </dependency>
+        <!-- This artifact support linux unix domain socket -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport-native-epoll</artifactId>
+            <version>4.0.33.Final</version>
+            <!--We should always use linux-x86-64 without using os-maven-plugin
+              because our server will always be linux-x86_64, we should ship
+              x86_64 JNI libraries... -->
+            <classifier>linux-x86_64</classifier>
         </dependency>
     </dependencies>
 </project>

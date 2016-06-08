@@ -8,8 +8,13 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.netease.cns.transport.UnixChannelInitializer;
+import com.netease.cns.transport.UnixConnectionInitializer;
+import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import org.opendaylight.openflowjava.protocol.api.connection.*;
+import org.opendaylight.openflowjava.protocol.api.connection.ConnectionConfiguration;
+import org.opendaylight.openflowjava.protocol.api.connection.ThreadConfiguration;
+import org.opendaylight.openflowjava.protocol.api.connection.TlsConfiguration;
 import org.opendaylight.openflowjava.protocol.impl.core.SwitchConnectionProviderImpl;
 import org.opendaylight.openflowjava.protocol.impl.core.TcpChannelInitializer;
 import org.opendaylight.openflowjava.protocol.impl.core.TcpConnectionInitializer;
@@ -20,7 +25,10 @@ import org.opendaylight.openflowjava.protocol.impl.serialization.SerializerRegis
 import org.opendaylight.ovsdb.lib.OvsdbClient;
 import org.opendaylight.ovsdb.lib.OvsdbConnectionListener;
 import org.opendaylight.ovsdb.lib.impl.OvsdbConnectionService;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.*;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.FlowModCommand;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.FlowModFlags;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.PortNumber;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.TableId;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.config.rev140630.TransportProtocol;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.InPort;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.OpenflowBasicClass;
@@ -49,120 +57,6 @@ public class LocalController {
     private static ListeningExecutorService pool = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(10));
     private static OFConnectionManager ofConnectionManager = new OFConnectionManager();
 
-    static class ConnectionConfigurationImpl implements ConnectionConfiguration {
-
-        private final InetAddress address;
-        private final int port;
-        private Object transferProtocol;
-        private final TlsConfiguration tlsConfig;
-        private final long switchIdleTimeout;
-        private ThreadConfiguration threadConfig;
-        private final boolean useBarrier;
-
-        /**
-         * Creates {@link ConnectionConfigurationImpl}
-         *
-         * @param address
-         * @param port
-         * @param protocol
-         * @param switchIdleTimeout
-         * @param useBarrier
-         */
-        public ConnectionConfigurationImpl(final InetAddress address, final int port, final TransportProtocol protocol,
-                                           final long switchIdleTimeout, final boolean useBarrier) {
-            this.address = address;
-            this.port = port;
-            this.transferProtocol = protocol;
-            this.switchIdleTimeout = switchIdleTimeout;
-            this.useBarrier = useBarrier;
-            this.tlsConfig = null;
-        }
-
-        @Override
-        public InetAddress getAddress() {
-            return address;
-        }
-
-        @Override
-        public int getPort() {
-            return port;
-        }
-
-        @Override
-        public Object getTransferProtocol() {
-            return transferProtocol;
-        }
-
-        /**
-         * Used for testing - sets transport protocol
-         * @param protocol
-         */
-        public void setTransferProtocol(final TransportProtocol protocol) {
-            this.transferProtocol = protocol;
-        }
-
-        @Override
-        public long getSwitchIdleTimeout() {
-            return switchIdleTimeout;
-        }
-
-        @Override
-        public Object getSslContext() {
-            // TODO Auto-generated method stub
-            return null;
-        }
-
-        @Override
-        public TlsConfiguration getTlsConfiguration() {
-            return tlsConfig;
-        }
-
-        @Override
-        public ThreadConfiguration getThreadConfiguration() {
-            return threadConfig;
-        }
-
-        /**
-         * @param threadConfig thread model configuration (configures threads used)
-         */
-        public void setThreadConfiguration(final ThreadConfiguration threadConfig) {
-            this.threadConfig = threadConfig;
-        }
-
-        @Override
-        public boolean useBarrier() {
-            return useBarrier;
-        }
-    }
-
-
-    static class OvsdbConnectionListenerImpl implements OvsdbConnectionListener {
-        OvsdbClient activeClient = null;
-
-        public void connected(OvsdbClient client) {
-            LOG.info("an ovsdb instanced connected...");
-            activeClient = client;
-            final ListenableFuture databases_future = activeClient.getDatabases();
-            databases_future.addListener(new Runnable() {
-                public void run() {
-                    try {
-                        LOG.info("The ovsdb instance hold: " + databases_future.get());
-                    } catch (InterruptedException e) {
-                        LOG.error("The get database rpc is interrupted...");
-                    } catch (ExecutionException e) {
-                        LOG.error("Exception in task");
-                    }
-                }
-            }, pool);
-
-        }
-
-        public void disconnected(OvsdbClient client) {
-            LOG.info("an ovsdb instanced say byebye...");
-            activeClient = null;
-        }
-    }
-
     public static void main(String[] args) throws Exception {
         final int ofPort = 6633;
         final int ovsdbPort = 6634;
@@ -170,7 +64,9 @@ public class LocalController {
         final String connectAddressStr = "10.166.224.11";
         final InetAddress connectAddress = InetAddress.getByName("10.166.224.11");
         final InetAddress listenAddress = InetAddress.getByName("0.0.0.0");
+        final String unixServerPath = "/run/openvswitch/br-int.mgmt";
         Boolean connectActive = true;
+        Boolean connectionUnixActive = true;
 
         // 1. start openflow controller to listen local ovs-vswitchd to connect.
 
@@ -187,16 +83,8 @@ public class LocalController {
             sc.setConfiguration(cc);
             sc.setSwitchConnectionHandler(ofConnectionManager);
             sc.startup();
-        } else /* ovs-vsctl set-controller br-int ptcp:6633 */ {
-            NioEventLoopGroup workerGroup = new NioEventLoopGroup(); // Use Epoll???
-
-            // OpenFlow java seems assume passive connection only, so active is a bit hardcoded here,
-            // However, active connection to brXXX.mgmt unix domain socket seems to be the only way
-            // to not interrupt traffic.
-            TcpConnectionInitializer tcpConnectionInitializer = new TcpConnectionInitializer(workerGroup);
-            TcpChannelInitializer tcpChannelInitializer = new TcpChannelInitializer();
-            tcpConnectionInitializer.setChannelInitializer(tcpChannelInitializer);
-            tcpChannelInitializer.setSwitchConnectionHandler(ofConnectionManager);
+        } else {
+            /* Init shared SesDes... */
             SerializerRegistryImpl serializerRegistry = new SerializerRegistryImpl();
             serializerRegistry.init();
             SerializationFactory serializationFactory = new SerializationFactory();
@@ -205,10 +93,37 @@ public class LocalController {
             deserializerRegistry.init();
             DeserializationFactory deserializationFactory = new DeserializationFactory();
             deserializationFactory.setRegistry(deserializerRegistry);
-            tcpChannelInitializer.setSerializationFactory(serializationFactory);
-            tcpChannelInitializer.setDeserializationFactory(deserializationFactory);
-            tcpConnectionInitializer.run();
-            tcpConnectionInitializer.initiateConnection(connectAddressStr, ofPort);
+
+            if (!connectionUnixActive) /* ovs-vsctl set-controller br-int ptcp:6633 */ {
+                NioEventLoopGroup workerGroup = new NioEventLoopGroup(); // XXX: Use Epoll for performance...
+
+                // OpenFlow java seems assume passive connection only, so active is a bit hardcoded here,
+                // However, active connection to brXXX.mgmt unix domain socket seems to be the only way
+                // to not interrupt traffic.
+                TcpConnectionInitializer tcpConnectionInitializer = new TcpConnectionInitializer(workerGroup);
+                TcpChannelInitializer tcpChannelInitializer = new TcpChannelInitializer();
+                tcpConnectionInitializer.setChannelInitializer(tcpChannelInitializer);
+                tcpChannelInitializer.setSwitchConnectionHandler(ofConnectionManager);
+                tcpChannelInitializer.setSerializationFactory(serializationFactory);
+                tcpChannelInitializer.setDeserializationFactory(deserializationFactory);
+                tcpConnectionInitializer.run();
+                tcpConnectionInitializer.initiateConnection(connectAddressStr, ofPort);
+            } else /* Connection to default br-XXX.mgmt. */ {
+                // NOTE: OVS configure a default 60 seconds echo request timer for
+                // this connection will make the test run slowly than TCP since we
+                // depend on the echo request as a indication of establishment of
+                // connection.
+                // Refer to : bridge_ofproto_controller_for_mgmt in bridge.c
+                EpollEventLoopGroup workerGroup = new EpollEventLoopGroup();
+                UnixConnectionInitializer unixConnectionInitializer = new UnixConnectionInitializer(workerGroup);
+                UnixChannelInitializer unixChannelInitializer = new UnixChannelInitializer();
+                unixConnectionInitializer.setChannelInitializer(unixChannelInitializer);
+                unixChannelInitializer.setSwitchConnectionHandler(ofConnectionManager);
+                unixChannelInitializer.setSerializationFactory(serializationFactory);
+                unixChannelInitializer.setDeserializationFactory(deserializationFactory);
+                unixConnectionInitializer.run();
+                unixConnectionInitializer.initiateConnection(unixServerPath);
+            }
         }
 
         // 2. start ovsdb controller to listen local ovsdb-server to connect.
@@ -350,8 +265,114 @@ public class LocalController {
         });
 
         while (true) {
-            LOG.info("I am active....");
+            LOG.info("Master thread is running....");
             Thread.sleep(1000);
+        }
+    }
+
+    static class ConnectionConfigurationImpl implements ConnectionConfiguration {
+
+        private final InetAddress address;
+        private final int port;
+        private final TlsConfiguration tlsConfig;
+        private final long switchIdleTimeout;
+        private final boolean useBarrier;
+        private Object transferProtocol;
+        private ThreadConfiguration threadConfig;
+
+        /**
+         * Creates {@link ConnectionConfigurationImpl}
+         *
+         * @param address
+         * @param port
+         * @param protocol
+         * @param switchIdleTimeout
+         * @param useBarrier
+         */
+        public ConnectionConfigurationImpl(final InetAddress address, final int port, final TransportProtocol protocol,
+                                           final long switchIdleTimeout, final boolean useBarrier) {
+            this.address = address;
+            this.port = port;
+            this.transferProtocol = protocol;
+            this.switchIdleTimeout = switchIdleTimeout;
+            this.useBarrier = useBarrier;
+            this.tlsConfig = null;
+        }
+
+        public InetAddress getAddress() {
+            return address;
+        }
+
+        public int getPort() {
+            return port;
+        }
+
+        public Object getTransferProtocol() {
+            return transferProtocol;
+        }
+
+        /**
+         * Used for testing - sets transport protocol
+         *
+         * @param protocol
+         */
+        public void setTransferProtocol(final TransportProtocol protocol) {
+            this.transferProtocol = protocol;
+        }
+
+        public long getSwitchIdleTimeout() {
+            return switchIdleTimeout;
+        }
+
+        public Object getSslContext() {
+            // TODO Auto-generated method stub
+            return null;
+        }
+
+        public TlsConfiguration getTlsConfiguration() {
+            return tlsConfig;
+        }
+
+        public ThreadConfiguration getThreadConfiguration() {
+            return threadConfig;
+        }
+
+        /**
+         * @param threadConfig thread model configuration (configures threads used)
+         */
+        public void setThreadConfiguration(final ThreadConfiguration threadConfig) {
+            this.threadConfig = threadConfig;
+        }
+
+        public boolean useBarrier() {
+            return useBarrier;
+        }
+    }
+
+    static class OvsdbConnectionListenerImpl implements OvsdbConnectionListener {
+        OvsdbClient activeClient = null;
+
+        public void connected(OvsdbClient client) {
+            LOG.info("an ovsdb instanced connected...");
+            activeClient = client;
+            final ListenableFuture databases_future = activeClient.getDatabases();
+            databases_future.addListener(new Runnable() {
+                public void run() {
+                    try {
+                        LOG.info("The ovsdb instance hold: " + databases_future.get());
+                    } catch (InterruptedException e) {
+                        LOG.error("The get database rpc is interrupted...");
+                    } catch (ExecutionException e) {
+                        LOG.error("Exception in task");
+                    }
+                }
+            }, pool);
+
+        }
+
+        public void disconnected(OvsdbClient client) {
+            LOG.info("an ovsdb instanced say byebye...");
+            activeClient = null;
         }
     }
 }

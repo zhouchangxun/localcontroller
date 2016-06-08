@@ -33,6 +33,7 @@ public class OFConnectionManager implements OpenflowProtocolListener, SwitchConn
         activeConnectionAdapter = connectionAdapter;
     }
 
+
     public boolean accept(InetAddress inetAddress) {
         return true;
     }
@@ -107,5 +108,9 @@ public class OFConnectionManager implements OpenflowProtocolListener, SwitchConn
 
     public ConnectionAdapter getActiveConnectionAdapter() {
         return activeConnectionAdapter;
+    }
+
+    public void enableEchoRequest() {
+        // TODO:
     }
 }
