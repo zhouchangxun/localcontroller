@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class UnixChannelInitializer extends ProtocolChannelInitializer<EpollDomainSocketChannel> {
 
-    private static final Logger LOGGER = LoggerFactory
+    private static final Logger LOG = LoggerFactory
             .getLogger(org.opendaylight.openflowjava.protocol.impl.core.TcpChannelInitializer.class);
     private final DefaultChannelGroup allChannels;
     private final ConnectionAdapterFactory connectionAdapterFactory;
@@ -40,12 +40,12 @@ public class UnixChannelInitializer extends ProtocolChannelInitializer<EpollDoma
 
     @Override
     protected void initChannel(EpollDomainSocketChannel ch) throws Exception {
-        LOGGER.debug("Connection to unix domain socket established - building pipeline");
+        LOG.debug("Connection to unix domain socket established - building pipeline");
         allChannels.add(ch);
         ConnectionFacade connectionFacade = null;
         connectionFacade = connectionAdapterFactory.createConnectionFacade(ch, null, useBarrier());
         try {
-            LOGGER.debug("calling plugin: {}", getSwitchConnectionHandler());
+            LOG.debug("calling plugin: {}", getSwitchConnectionHandler());
             getSwitchConnectionHandler().onSwitchConnected(connectionFacade);
             connectionFacade.checkListeners();
             ch.pipeline().addLast(PipelineHandlers.IDLE_HANDLER.name(), new IdleHandler(getSwitchIdleTimeout(), TimeUnit.MILLISECONDS));
@@ -60,7 +60,7 @@ public class UnixChannelInitializer extends ProtocolChannelInitializer<EpollDoma
             ch.pipeline().addLast(PipelineHandlers.OF_ENCODER.name(), ofEncoder);
             ch.pipeline().addLast(PipelineHandlers.DELEGATING_INBOUND_HANDLER.name(), new DelegatingInboundHandler(connectionFacade));
         } catch (final Exception e) {
-            LOGGER.warn("Failed to initialize channel", e);
+            LOG.warn("Failed to initialize channel", e);
             ch.close();
         }
     }

@@ -4,6 +4,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.epoll.EpollDomainSocketChannel;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.unix.DomainSocketAddress;
@@ -18,7 +20,7 @@ import org.slf4j.LoggerFactory;
  */
 public class UnixConnectionInitializer implements ServerFacade {
 
-    private static final Logger LOGGER = LoggerFactory
+    private static final Logger LOG = LoggerFactory
             .getLogger(UnixConnectionInitializer.class);
     private EpollEventLoopGroup workerGroup;
     private ThreadConfiguration threadConfig;
@@ -58,11 +60,21 @@ public class UnixConnectionInitializer implements ServerFacade {
     }
 
     public void initiateConnection(String unixSocketPath) {
-        try {
-            b.connect(new DomainSocketAddress(unixSocketPath)).sync();
-        } catch (InterruptedException e) {
-            LOGGER.error("Unable to initiate connection", e);
-        }
+        // XXX: I copied the code from TCPConnectionInitializer, but it directly
+        // call sync of the ChannelFuture object which does not conform to fully-async
+        // philosophy of netty.
+        // Change to code here.
+        // Also netty ChannelFuture.sync seems have a bug which does raise exception like
+        // ConnectException due to it define the interface specified only InterruptedException
+        // will be raised....
+        ChannelFuture f = b.connect(new DomainSocketAddress(unixSocketPath));
+        f.addListener(new ChannelFutureListener() {
+            public void operationComplete(ChannelFuture future) throws Exception {
+                if (!future.isSuccess()) {
+                    LOG.error("Unable to initial connection due to " + future.cause().getMessage());
+                }
+            }
+        });
     }
 
     /**

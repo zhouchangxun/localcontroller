@@ -111,7 +111,7 @@ public class LocalController {
                 // depend on the echo request as a indication of establishment of
                 // connection.
                 // Refer to : bridge_ofproto_controller_for_mgmt in bridge.c
-                EpollEventLoopGroup workerGroup = new EpollEventLoopGroup(5);
+                EpollEventLoopGroup workerGroup = new EpollEventLoopGroup();
                 UnixConnectionInitializer unixConnectionInitializer = new UnixConnectionInitializer(workerGroup);
                 UnixChannelInitializer unixChannelInitializer = new UnixChannelInitializer();
                 unixConnectionInitializer.setChannelInitializer(unixChannelInitializer);
