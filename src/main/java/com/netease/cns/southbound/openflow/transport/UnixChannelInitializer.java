@@ -1,4 +1,4 @@
-package com.netease.cns.transport;
+package com.netease.cns.southbound.openflow.transport;
 
 import io.netty.channel.Channel;
 import io.netty.channel.epoll.EpollDomainSocketChannel;

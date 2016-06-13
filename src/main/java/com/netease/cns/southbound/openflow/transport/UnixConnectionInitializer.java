@@ -1,4 +1,4 @@
-package com.netease.cns.transport;
+package com.netease.cns.southbound.openflow.transport;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ListenableFuture;

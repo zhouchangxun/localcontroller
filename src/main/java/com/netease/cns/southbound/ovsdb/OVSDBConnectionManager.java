@@ -1,4 +1,4 @@
-package com.netease.cns;
+package com.netease.cns.southbound.ovsdb;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;

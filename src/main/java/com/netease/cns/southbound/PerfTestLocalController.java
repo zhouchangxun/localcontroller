@@ -2,15 +2,17 @@
  * Created by hzzhangdongya on 16-6-6.
  */
 
-package com.netease.cns;
+package com.netease.cns.southbound;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.netease.cns.transport.UnixChannelInitializer;
-import com.netease.cns.transport.UnixConnectionInitializer;
+import com.netease.cns.southbound.openflow.OFConnection;
+import com.netease.cns.southbound.openflow.transport.UnixChannelInitializer;
+import com.netease.cns.southbound.openflow.transport.UnixConnectionInitializer;
+import com.netease.cns.southbound.ovsdb.OVSDBConnectionManager;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.opendaylight.openflowjava.protocol.api.connection.ConnectionConfiguration;
@@ -29,11 +31,8 @@ import org.opendaylight.ovsdb.lib.message.MonitorRequest;
 import org.opendaylight.ovsdb.lib.message.MonitorRequestBuilder;
 import org.opendaylight.ovsdb.lib.message.MonitorSelect;
 import org.opendaylight.ovsdb.lib.message.TableUpdates;
-import org.opendaylight.ovsdb.lib.notation.Condition;
-import org.opendaylight.ovsdb.lib.notation.Function;
 import org.opendaylight.ovsdb.lib.notation.Mutator;
 import org.opendaylight.ovsdb.lib.notation.UUID;
-import org.opendaylight.ovsdb.lib.operations.Operation;
 import org.opendaylight.ovsdb.lib.operations.OperationResult;
 import org.opendaylight.ovsdb.lib.operations.TransactionBuilder;
 import org.opendaylight.ovsdb.lib.schema.DatabaseSchema;
@@ -71,10 +70,10 @@ import java.util.concurrent.TimeUnit;
 
 import static org.opendaylight.ovsdb.lib.operations.Operations.op;
 
-public class LocalController {
-    private static final Logger LOG = LoggerFactory.getLogger(LocalController.class);
+public class PerfTestLocalController {
+    private static final Logger LOG = LoggerFactory.getLogger(PerfTestLocalController.class);
     private static ListeningExecutorService pool = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(10));
-    private static OFConnectionManager ofConnectionManager = new OFConnectionManager();
+    private static OFConnection ofConnection = new OFConnection();
     private static OVSDBConnectionManager ovsdbConnectionManager = new OVSDBConnectionManager(pool);
 
     public static void main(String[] args) throws Exception {
@@ -101,7 +100,7 @@ public class LocalController {
                                                                             * */);
 
             sc.setConfiguration(cc);
-            sc.setSwitchConnectionHandler(ofConnectionManager);
+            sc.setSwitchConnectionHandler(ofConnection);
             sc.startup();
         } else {
             /* Init shared SesDes... */
@@ -123,7 +122,7 @@ public class LocalController {
                 TcpConnectionInitializer tcpConnectionInitializer = new TcpConnectionInitializer(workerGroup);
                 TcpChannelInitializer tcpChannelInitializer = new TcpChannelInitializer();
                 tcpConnectionInitializer.setChannelInitializer(tcpChannelInitializer);
-                tcpChannelInitializer.setSwitchConnectionHandler(ofConnectionManager);
+                tcpChannelInitializer.setSwitchConnectionHandler(ofConnection);
                 tcpChannelInitializer.setSerializationFactory(serializationFactory);
                 tcpChannelInitializer.setDeserializationFactory(deserializationFactory);
                 tcpConnectionInitializer.run();
@@ -138,7 +137,7 @@ public class LocalController {
                 UnixConnectionInitializer unixConnectionInitializer = new UnixConnectionInitializer(workerGroup);
                 UnixChannelInitializer unixChannelInitializer = new UnixChannelInitializer();
                 unixConnectionInitializer.setChannelInitializer(unixChannelInitializer);
-                unixChannelInitializer.setSwitchConnectionHandler(ofConnectionManager);
+                unixChannelInitializer.setSwitchConnectionHandler(ofConnection);
                 unixChannelInitializer.setSerializationFactory(serializationFactory);
                 unixChannelInitializer.setDeserializationFactory(deserializationFactory);
                 unixConnectionInitializer.run();
@@ -152,7 +151,7 @@ public class LocalController {
             pool.submit(new Runnable() {
                 public void run() {
                     while (true) {
-                        if (ofConnectionManager.isConnectionActive()) {
+                        if (ofConnection.isConnectionActive()) {
                             LOG.info("The openflow switch is active, now start test flowmod performance...");
 
                             final short OF_VERSION = 4;
@@ -207,7 +206,7 @@ public class LocalController {
                                 fmInputBuild.setOutPort(new PortNumber(OUTPUT_PORT));
                                 // XXX: Perhaps here we should have a lock when operating on the connection adapter...
                                 // For perftest this is enough.
-                                ofConnectionManager.getActiveConnectionAdapter().flowMod(fmInputBuild.build());
+                                ofConnection.getActiveConnectionAdapter().flowMod(fmInputBuild.build());
                                 if (i % 1000 == 0) {
                                     try {
                                         // Yield some time to let ChannelOutput queue to drain...
@@ -223,7 +222,7 @@ public class LocalController {
                             barrierInputBuilder.setVersion(OF_VERSION);
                             barrierInputBuilder.setXid((long) FLOW_NUM);
                             Future<RpcResult<BarrierOutput>> barrierResult =
-                                    ofConnectionManager.getActiveConnectionAdapter().barrier(barrierInputBuilder.build());
+                                    ofConnection.getActiveConnectionAdapter().barrier(barrierInputBuilder.build());
                             try {
                                 RpcResult<BarrierOutput> output = barrierResult.get(BARRIER_TIMEOUT, BARRIER_TIMEOUT_UNIT);
                                 //long finishTime = date.getTime();
@@ -287,7 +286,7 @@ public class LocalController {
                                 (ovsdbConnectionManager.getSchema() != null)) {
                             final DatabaseSchema schema = ovsdbConnectionManager.getSchema();
                             final OvsdbClient client = ovsdbConnectionManager.getActiveOvsdbClient();
-                            final int INTERNAL_PORT_NUM = 2000;
+                            final int INTERNAL_PORT_NUM = 10;
                             final List<Interface> interfaceWithValidOfPortList = Lists.newArrayList();
                             final Map<UUID, Port> portMap = new HashMap<UUID, Port>();
                             final GenericTableSchema portTableSchema = schema.table("Port", GenericTableSchema.class);

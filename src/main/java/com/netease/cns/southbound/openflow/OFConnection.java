@@ -1,4 +1,4 @@
-package com.netease.cns;
+package com.netease.cns.southbound.openflow;
 
 import org.opendaylight.openflowjava.protocol.api.connection.ConnectionAdapter;
 import org.opendaylight.openflowjava.protocol.api.connection.ConnectionReadyListener;
@@ -15,9 +15,9 @@ import java.net.InetAddress;
 /**
  * Created by hzzhangdongya on 16-6-7.
  */
-public class OFConnectionManager implements OpenflowProtocolListener, SwitchConnectionHandler,
+public class OFConnection implements OpenflowProtocolListener, SwitchConnectionHandler,
         SystemNotificationsListener, ConnectionReadyListener {
-    private static final Logger LOG = LoggerFactory.getLogger(OFConnectionManager.class);
+    private static final Logger LOG = LoggerFactory.getLogger(OFConnection.class);
     private ConnectionAdapter activeConnectionAdapter = null;
     private boolean connectionActive = false;
     // TODO implement a storage that manager all the bridges because each one need to be
