@@ -287,11 +287,13 @@ public class LocalController {
                                 (ovsdbConnectionManager.getSchema() != null)) {
                             final DatabaseSchema schema = ovsdbConnectionManager.getSchema();
                             final OvsdbClient client = ovsdbConnectionManager.getActiveOvsdbClient();
-                            final int INTERNAL_PORT_NUM = 100;
+                            final int INTERNAL_PORT_NUM = 2000;
                             final List<Interface> interfaceWithValidOfPortList = Lists.newArrayList();
                             final Map<UUID, Port> portMap = new HashMap<UUID, Port>();
                             final GenericTableSchema portTableSchema = schema.table("Port", GenericTableSchema.class);
                             final GenericTableSchema interfaceTableSchema = schema.table("Interface", GenericTableSchema.class);
+                            long startTime = 0;
+                            long finishTime = 0;
 
                             final MonitorCallBack callback = new MonitorCallBack() {
                                 @Override
@@ -363,7 +365,7 @@ public class LocalController {
                             //long startTime = date.getTime();
                             // Same date instance getTime call will return same timestamp, call System
                             // interface directly...
-                            final long startTime = System.currentTimeMillis();
+                            startTime = System.currentTimeMillis();
                             LOG.info("OVSDB performance test start at " + startTime);
                             int i = 0;
                             for (; i < INTERNAL_PORT_NUM; i++) {
@@ -418,10 +420,7 @@ public class LocalController {
                             // Wait until all ports have ofport valid.
                             while (true) {
                                 if (interfaceWithValidOfPortList.size() == INTERNAL_PORT_NUM) {
-                                    long finishTime = System.currentTimeMillis();
-                                    LOG.info("OVSDB performance test finished at " + finishTime);
-                                    LOG.info("OVSDB port add performance test finished at " + finishTime);
-                                    LOG.info("OVSDB port add rate is " + 1000 * ((float) INTERNAL_PORT_NUM) / (float) (finishTime - startTime));
+                                    finishTime = System.currentTimeMillis();
                                     break;
                                 } else {
                                     try {
@@ -451,6 +450,7 @@ public class LocalController {
                             }
 
                             // Delete all just added port
+                            final List<Object> portRemovedList = Lists.newArrayList();
                             for (Map.Entry<UUID, Port> entry : portMap.entrySet()) {
                                 TransactionBuilder tb = client.transactBuilder(schema);
 
@@ -472,6 +472,7 @@ public class LocalController {
                                 final ListenableFuture<List<OperationResult>> result = tb.execute();
                                 result.addListener(new Runnable() {
                                     public void run() {
+                                        portRemovedList.add(null); // just add null, we use list size to check completion
                                         try {
                                             List<OperationResult> results = result.get();
                                             for (OperationResult operationResult : results) {
@@ -485,6 +486,26 @@ public class LocalController {
                                     }
                                 }, pool);
                             }
+
+
+                            while (true) {
+                                if (portRemovedList.size() != INTERNAL_PORT_NUM) {
+                                    try {
+                                        LOG.info("Test Ports not fully deleted");
+                                        Thread.sleep(50);
+                                    } catch (InterruptedException e) {
+                                        LOG.info("OVSDB perf test is interrupted.");
+                                        break;
+                                    }
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            // Report test result.
+                            LOG.info("OVSDB performance test finished at " + finishTime);
+                            LOG.info("OVSDB port add performance test finished at " + finishTime);
+                            LOG.info("OVSDB port add rate is " + 1000 * ((float) INTERNAL_PORT_NUM) / (float) (finishTime - startTime));
 
                             break;
                         } else {
