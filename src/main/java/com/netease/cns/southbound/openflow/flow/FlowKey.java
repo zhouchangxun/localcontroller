@@ -1,13 +1,8 @@
-package com.netease.cns.southbound.openflow;
+package com.netease.cns.southbound.openflow.flow;
 
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.action.rev150203.actions.grouping.Action;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.FlowModCommand;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.FlowModFlags;
+import com.netease.cns.southbound.openflow.common.Constants;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.TableId;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.match.grouping.Match;
-
-import java.math.BigInteger;
-import java.util.List;
 
 /**
  * Created by hzzhangdongya on 16-6-14.

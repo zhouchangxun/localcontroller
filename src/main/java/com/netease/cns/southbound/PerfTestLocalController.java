@@ -10,6 +10,9 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.netease.cns.southbound.openflow.*;
+import com.netease.cns.southbound.openflow.flow.Flow;
+import com.netease.cns.southbound.openflow.flow.FlowKey;
+import com.netease.cns.southbound.openflow.flow.FlowMatchHelper;
 import com.netease.cns.southbound.ovsdb.OVSDBConnectionManager;
 import org.opendaylight.openflowjava.protocol.api.connection.ConnectionConfiguration;
 import org.opendaylight.openflowjava.protocol.api.connection.ThreadConfiguration;
@@ -30,32 +33,14 @@ import org.opendaylight.ovsdb.lib.schema.typed.TyperUtils;
 import org.opendaylight.ovsdb.schema.openvswitch.Bridge;
 import org.opendaylight.ovsdb.schema.openvswitch.Interface;
 import org.opendaylight.ovsdb.schema.openvswitch.Port;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.FlowModCommand;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.FlowModFlags;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.PortNumber;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.common.types.rev130731.TableId;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.config.rev140630.TransportProtocol;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.InPort;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.OpenflowBasicClass;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.OxmMatchType;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.match.entries.grouping.MatchEntryBuilder;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.match.entry.value.grouping.match.entry.value.InPortCaseBuilder;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.match.entry.value.grouping.match.entry.value.in.port._case.InPortBuilder;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.oxm.rev150225.match.grouping.MatchBuilder;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.protocol.rev130731.BarrierInputBuilder;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.protocol.rev130731.BarrierOutput;
-import org.opendaylight.yang.gen.v1.urn.opendaylight.openflow.protocol.rev130731.FlowModInputBuilder;
-import org.opendaylight.yangtools.yang.common.RpcResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigInteger;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import static org.opendaylight.ovsdb.lib.operations.Operations.op;
 
@@ -89,21 +74,7 @@ public class PerfTestLocalController {
                             for (; i < FLOW_NUM; i++) {
                                 Flow flow = new Flow();
                                 FlowKey flowKey = flow.getFlowKey();
-                                // TODO: hide all this stuffs to API implementation, this is too complex and verbose
-                                // for agent development.
-                                InPortBuilder inPortBuilder = new InPortBuilder();
-                                inPortBuilder.setPortNumber(new PortNumber(new Long((long) i)));
-                                InPortCaseBuilder caseBuilder = new InPortCaseBuilder()
-                                        .setInPort(inPortBuilder.build());
-                                MatchEntryBuilder matchEntryBuilder = new MatchEntryBuilder()
-                                        .setOxmClass(OpenflowBasicClass.class)
-                                        .setOxmMatchField(InPort.class)
-                                        .setHasMask(false)
-                                        .setMatchEntryValue(caseBuilder.build());
-                                MatchBuilder matchBuilder = new MatchBuilder()
-                                        .setType(OxmMatchType.class)
-                                        .setMatchEntry(Lists.newArrayList(matchEntryBuilder.build()));
-                                flowKey.setMatch(matchBuilder.build());
+                                flowKey.setMatch(new FlowMatchHelper().setInPort(i).toMatch());
                                 ofBridge.addFlow(flow);
                             }
 
