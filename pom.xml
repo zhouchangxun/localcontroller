@@ -46,6 +46,11 @@
             <artifactId>slf4j-log4j12</artifactId>
             <version>1.7.21</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.romix</groupId>
+            <artifactId>java-concurrent-hash-trie-map</artifactId>
+            <version>0.2.23</version>
+        </dependency>
         <!-- This artifact support linux unix domain socket -->
         <dependency>
             <groupId>io.netty</groupId>

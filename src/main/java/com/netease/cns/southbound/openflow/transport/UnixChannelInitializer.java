@@ -59,6 +59,7 @@ public class UnixChannelInitializer extends ProtocolChannelInitializer<EpollDoma
             ofEncoder.setSerializationFactory(getSerializationFactory());
             ch.pipeline().addLast(PipelineHandlers.OF_ENCODER.name(), ofEncoder);
             ch.pipeline().addLast(PipelineHandlers.DELEGATING_INBOUND_HANDLER.name(), new DelegatingInboundHandler(connectionFacade));
+            connectionFacade.fireConnectionReadyNotification();
         } catch (final Exception e) {
             LOG.warn("Failed to initialize channel", e);
             ch.close();

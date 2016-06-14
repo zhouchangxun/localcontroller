@@ -18,101 +18,116 @@ import java.net.InetAddress;
 public class OFConnection implements OpenflowProtocolListener, SwitchConnectionHandler,
         SystemNotificationsListener, ConnectionReadyListener {
     private static final Logger LOG = LoggerFactory.getLogger(OFConnection.class);
-    private ConnectionAdapter activeConnectionAdapter = null;
-    private boolean connectionActive = false;
-    // TODO implement a storage that manager all the bridges because each one need to be
-    //      managed through unix socket...
+    private ConnectionAdapter connectionAdapter = null;
+    private boolean working = false;
+    // TODO: thread safety or atomic integer?
+    private long xid = -1; // OpenFlow xid is 32 bit unsigned integer.
 
-    public void onConnectionReady() {
+    public long nextXid() {
+        long _xid = this.xid + 1;
+        if (_xid > 4294967295L) {
+            _xid = this.xid = 0;
+        }
 
+        return _xid;
     }
 
+    @Override
+    public void onConnectionReady() {
+        // We send one hello immediately, and due to the simplicity of our
+        // scenario, we can make sure our handshake with peer will succeed,
+        // and we will make this connection liave
+        HelloInputBuilder helloInputbuilder = new HelloInputBuilder();
+        // OpenFlow 1.3, we can use 1.3 with NXM extensions to program
+        // the OpenFlow rules we programmed by ovs-ofctl...
+        helloInputbuilder.setVersion(new Short((short) 4));
+        helloInputbuilder.setXid(nextXid());
+        HelloInput helloInput = helloInputbuilder.build();
+        // Not care result currently.
+        connectionAdapter.hello(helloInput);
+    }
+
+    // This is called when underlying socket connected but decoder/encoder not
+    // added to the pipeline, so never try to send any packet here, do it after
+    // got onConnectionReady notification.
+    @Override
     public void onSwitchConnected(ConnectionAdapter connectionAdapter) {
         LOG.info("A openflow switch connected...");
         connectionAdapter.setConnectionReadyListener(this);
         connectionAdapter.setMessageListener(this);
         connectionAdapter.setSystemListener(this);
-        activeConnectionAdapter = connectionAdapter;
+        this.connectionAdapter = connectionAdapter;
     }
 
-
+    @Override
     public boolean accept(InetAddress inetAddress) {
         return true;
     }
 
+    @Override
     public void onMultipartReplyMessage(MultipartReplyMessage multipartReplyMessage) {
 
     }
 
+    @Override
     public void onExperimenterMessage(ExperimenterMessage experimenterMessage) {
 
     }
 
+    @Override
     public void onPortStatusMessage(PortStatusMessage portStatusMessage) {
 
     }
 
+    @Override
     public void onErrorMessage(ErrorMessage errorMessage) {
 
     }
 
+    @Override
     public void onPacketInMessage(PacketInMessage packetInMessage) {
 
     }
 
+    @Override
     public void onHelloMessage(HelloMessage helloMessage) {
-        // Simply reply a hello message to the switch, later we may add
-        // a HandshakeManager as openflowplugin does.
-        if (activeConnectionAdapter != null ) {
-            HelloInputBuilder helloInputbuilder = new HelloInputBuilder();
-            // OpenFlow 1.3, we can use 1.3 with NXM extensions to program
-            // the OpenFlow rules we programmed by ovs-ofctl...
-            helloInputbuilder.setVersion(new Short((short)4));
-            helloInputbuilder.setXid(helloMessage.getXid());
-            HelloInput helloInput = helloInputbuilder.build();
-            // Not care result currently.
-            activeConnectionAdapter.hello(helloInput);
-        }
+        // No handshake is needed in our scenario, directly shift to working.
+        working = true;
     }
 
+    @Override
     public void onEchoRequestMessage(EchoRequestMessage echoRequestMessage) {
         // Simply reply a EchoReply to make connection alive.
-        if (activeConnectionAdapter != null ) {
-            EchoReplyInputBuilder echoReplyInputBuilder = new EchoReplyInputBuilder();
-            // OpenFlow 1.3, we can use 1.3 with NXM extensions to program
-            // the OpenFlow rules we programmed by ovs-ofctl...
-            echoReplyInputBuilder.setVersion(new Short((short)4));
-            echoReplyInputBuilder.setXid(echoRequestMessage.getXid());
-            EchoReplyInput echoReplyInput = echoReplyInputBuilder.build();
-            // Not care result currently.
-            activeConnectionAdapter.echoReply(echoReplyInput);
-
-            // Set indication of connection ready.
-            connectionActive = true;
-        }
+        EchoReplyInputBuilder echoReplyInputBuilder = new EchoReplyInputBuilder();
+        // OpenFlow 1.3, we can use 1.3 with NXM extensions to program
+        // the OpenFlow rules we programmed by ovs-ofctl...
+        echoReplyInputBuilder.setVersion(new Short((short)4));
+        echoReplyInputBuilder.setXid(echoRequestMessage.getXid());
+        EchoReplyInput echoReplyInput = echoReplyInputBuilder.build();
+        // Not care result currently.
+        connectionAdapter.echoReply(echoReplyInput);
     }
 
+    @Override
     public void onFlowRemovedMessage(FlowRemovedMessage flowRemovedMessage) {
 
     }
 
+    @Override
     public void onSwitchIdleEvent(SwitchIdleEvent switchIdleEvent) {
-
+        // Handle idle timeout logic here.
     }
 
+    @Override
     public void onDisconnectEvent(DisconnectEvent disconnectEvent) {
-        activeConnectionAdapter = null;
+        connectionAdapter = null;
     }
 
-    public boolean isConnectionActive() {
-        return connectionActive;
+    public boolean isConnectionWorking() {
+        return working;
     }
 
-    public ConnectionAdapter getActiveConnectionAdapter() {
-        return activeConnectionAdapter;
-    }
-
-    public void enableEchoRequest() {
-        // TODO:
+    public ConnectionAdapter getConnectionAdapter() {
+        return connectionAdapter;
     }
 }
