@@ -17,6 +17,7 @@ import java.util.ArrayList;
 
 /**
  * Created by hzzhangdongya on 16-6-14.
+ * Provide a easy to use helper to eliminate verbose ODL library object creation.
  */
 public class FlowMatchHelper {
     private long inPort = Constants.OFPP_ANY;
@@ -32,6 +33,8 @@ public class FlowMatchHelper {
         return this;
     }
 
+    // All match should be generated use this function, since MatchEntry in
+    // the matchEntryList will affect the equality of two Match instance.
     public Match toMatch() {
         ArrayList<MatchEntry> matchEntryList = Lists.newArrayList();
 

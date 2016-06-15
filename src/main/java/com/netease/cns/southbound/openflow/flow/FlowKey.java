@@ -18,6 +18,38 @@ public class FlowKey {
         match = Constants.MATCH_ALL;
     }
 
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        final FlowKey that = (FlowKey) o;
+
+        if (priority != that.priority) {
+            return false;
+        }
+        if (tableId != that.tableId) {
+            return false;
+        }
+        if (!match.equals(that.match)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = tableId.getValue().intValue();
+        result = 31 * result + priority;
+        result = 31 * result + match.hashCode();
+        return result;
+    }
+
     public Match getMatch() {
         return match;
     }
@@ -41,4 +73,5 @@ public class FlowKey {
     public void setPriority(Integer priority) {
         this.priority = priority;
     }
+
 }
