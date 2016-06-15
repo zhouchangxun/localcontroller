@@ -15,6 +15,7 @@ public class FlowKey {
     public FlowKey() {
         priority = java.lang.Integer.valueOf(0);
         tableId = Constants.TABLE_ID_0;
+        match = Constants.MATCH_ALL;
     }
 
     public Match getMatch() {

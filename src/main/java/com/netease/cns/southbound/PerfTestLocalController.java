@@ -13,7 +13,7 @@ import com.netease.cns.southbound.openflow.*;
 import com.netease.cns.southbound.openflow.flow.Flow;
 import com.netease.cns.southbound.openflow.flow.FlowKey;
 import com.netease.cns.southbound.openflow.flow.FlowMatchHelper;
-import com.netease.cns.southbound.ovsdb.OVSDBConnectionManager;
+import com.netease.cns.southbound.ovsdb.OVSDBManager;
 import org.opendaylight.openflowjava.protocol.api.connection.ConnectionConfiguration;
 import org.opendaylight.openflowjava.protocol.api.connection.ThreadConfiguration;
 import org.opendaylight.openflowjava.protocol.api.connection.TlsConfiguration;
@@ -47,11 +47,13 @@ import static org.opendaylight.ovsdb.lib.operations.Operations.op;
 public class PerfTestLocalController {
     private static final Logger LOG = LoggerFactory.getLogger(PerfTestLocalController.class);
     private static ListeningExecutorService pool = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(10));
-    private static OVSDBConnectionManager ovsdbConnectionManager = new OVSDBConnectionManager(pool);
 
     public static void main(String[] args) throws Exception {
+        final int ovsdbPort = 6634;
+        final InetAddress ovsdbAddr = InetAddress.getByName("10.166.224.11");
         OFBridgeManager ofBridgeManager = new OFBridgeManager();
         final OFBridge ofBridge = ofBridgeManager.getOFBridge("br-int");
+        OVSDBManager ovsdbManager = new OVSDBManager(ovsdbAddr, ovsdbPort);
 
         // Start a runnable which will push 1k flows once connection active,
         // we will then benchmark performance by using barrier.
@@ -102,30 +104,6 @@ public class PerfTestLocalController {
             });
         }
 
-        // 2. start ovsdb controller to listen local ovsdb-server to connect.
-        //    this means we start in passive mode, however, the library also
-        //    support active mode, we can try that either.
-
-        // TODO: if we make active connecton for openflow, we'd better also
-        // make active connection to ovsdb to make the two connection consistent.
-
-        if (false) /* ovs-vsctl set-manager tcp:10.166.228.3:6634 */ {
-            ovsdbConnectionManager.getOvsdbConnectionServer().registerConnectionListener(ovsdbConnectionManager);
-            ovsdbConnectionManager.getOvsdbConnectionServer().startOvsdbManager(6634);
-        } else /* ovs-vsctl set-manager ptcp:6634 */ {
-            // Actively connect will not be notified due to implementation of ovsdb library.
-            // Refer to: https://wiki.opendaylight.org/view/OVSDB:OVSDB_Library_Developer_Guide
-            //ovsdbConnectionManager.getOvsdbConnectionServer().registerConnectionListener(ovsdbConnectionManager);
-            OvsdbClient activeClient = ovsdbConnectionManager
-                    .getOvsdbConnectionServer().connect(InetAddress.getByName("10.166.224.11"), 6634);
-            if (activeClient != null) {
-                LOG.info("Connection to ovsdb server actively successfully...");
-                ovsdbConnectionManager.setActiveOvsdbClient(activeClient);
-                ovsdbConnectionManager.connected(activeClient); // Notify manually.
-            } else {
-                LOG.error("Connection to ovsdb server actively failed...");
-            }
-        }
 
         // Start a runnable which will create 4k ports once connection active
         // We should wrap a single port initialization as a transaction which
@@ -137,10 +115,9 @@ public class PerfTestLocalController {
             pool.submit(new Runnable() {
                 public void run() {
                     while (true) {
-                        if ((ovsdbConnectionManager.getActiveOvsdbClient() != null) &&
-                                (ovsdbConnectionManager.getSchema() != null)) {
-                            final DatabaseSchema schema = ovsdbConnectionManager.getSchema();
-                            final OvsdbClient client = ovsdbConnectionManager.getActiveOvsdbClient();
+                        if (ovsdbManager.isOVSDBConnectionWorking()) {
+                            final DatabaseSchema schema = null;//ovsdbConnectionManager.getSchema();
+                            final OvsdbClient client = null;//ovsdbConnectionManager.getActiveOvsdbClient();
                             final int INTERNAL_PORT_NUM = 10;
                             final List<Interface> interfaceWithValidOfPortList = Lists.newArrayList();
                             final Map<UUID, Port> portMap = new HashMap<UUID, Port>();
@@ -363,7 +340,7 @@ public class PerfTestLocalController {
 
                             break;
                         } else {
-                            LOG.info("OVSDB connection and schema is not ready, sleeping...");
+                            LOG.info("OVSDB connection is not ready, sleeping...");
                             try {
                                 Thread.sleep(1000);
                             } catch (InterruptedException e) {

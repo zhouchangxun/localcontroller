@@ -45,6 +45,7 @@ public class FlowMatchHelper {
                     .setOxmMatchField(InPort.class)
                     .setHasMask(false)
                     .setMatchEntryValue(caseBuilder.build());
+            matchEntryList.add(matchEntryBuilder.build());
 
         }
 
