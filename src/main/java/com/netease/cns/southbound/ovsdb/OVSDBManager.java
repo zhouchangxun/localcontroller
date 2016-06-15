@@ -28,7 +28,7 @@ import java.util.concurrent.Executors;
  * Created by hzzhangdongya on 16-6-7.
  * Provider a single entity for interact with local ovsdb-server.
  */
-public class OVSDBManager implements OvsdbConnectionListener {
+public class OVSDBManager implements OvsdbConnectionListener, OVSDBApi {
     private static final Logger LOG = LoggerFactory.getLogger(OVSDBManager.class);
     private static OvsdbConnectionService ovsdbConnectionService = new OvsdbConnectionService();
     private static ListeningExecutorService executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(1));

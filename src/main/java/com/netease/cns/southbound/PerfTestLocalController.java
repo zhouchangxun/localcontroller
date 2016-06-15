@@ -89,6 +89,12 @@ public class PerfTestLocalController {
                 public void run() {
                     while (true) {
                         if (ovsdbManager.isOVSDBConnectionWorking()) {
+                            // TODO: basic logic here.
+
+                            // 1. add 2k ports
+                            // 2. subscribe to port changes by registering to changes event.
+                            // 3. delete all ports and check local cache empty.
+                            // 4. report data and finish test.
 
                             break;
                         } else {

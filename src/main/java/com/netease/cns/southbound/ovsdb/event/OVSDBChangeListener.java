@@ -1,4 +1,4 @@
-package com.netease.cns.southbound.ovsdb;
+package com.netease.cns.southbound.ovsdb.event;
 
 /**
  * Created by hzzhangdongya on 16-6-14.
