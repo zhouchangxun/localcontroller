@@ -8,4 +8,5 @@ public interface OVSDBChangeListener {
     // 1. notify ovsdb
     // 2. notify port ofport changes (seems we do not need to handle port add before ofport obtained)
     // 3. notify port removal
+    void notify(BaseEvent event);
 }

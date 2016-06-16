@@ -16,6 +16,10 @@ import java.util.Map;
 public class BridgeTableUpdateHandler extends TableUpdateHandler {
     private static final Logger LOG = LoggerFactory.getLogger(BridgeTableUpdateHandler.class);
 
+    public BridgeTableUpdateHandler(OVSDBCache cache) {
+        super(cache);
+    }
+
     @Override
     public void process(OVSDBCache cache, TableUpdates updates, DatabaseSchema dbSchema) {
         Map<UUID,Bridge> updatedBridgeRows = TyperUtils.extractRowsUpdated(Bridge.class, updates, dbSchema);

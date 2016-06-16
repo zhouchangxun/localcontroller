@@ -6,6 +6,7 @@ import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.netease.cns.southbound.ovsdb.cache.OVSDBCache;
 import com.netease.cns.southbound.ovsdb.common.Constants;
+import com.netease.cns.southbound.ovsdb.event.OVSDBChangeListener;
 import org.opendaylight.ovsdb.lib.OvsdbClient;
 import org.opendaylight.ovsdb.lib.OvsdbConnectionListener;
 import org.opendaylight.ovsdb.lib.impl.OvsdbConnectionService;
@@ -21,6 +22,7 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
@@ -28,18 +30,19 @@ import java.util.concurrent.Executors;
  * Created by hzzhangdongya on 16-6-7.
  * Provider a single entity for interact with local ovsdb-server.
  */
-public class OVSDBManager implements OvsdbConnectionListener, OVSDBApi {
+public class OVSDBManager implements OvsdbConnectionListener {
     private static final Logger LOG = LoggerFactory.getLogger(OVSDBManager.class);
-    private static OvsdbConnectionService ovsdbConnectionService = new OvsdbConnectionService();
-    private static ListeningExecutorService executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(1));
     // TODO: we should define a associative MAP, in order to monitor only neccesary column of a specified table.
     private static final ArrayList<String> MONITOR_TABLES = new ArrayList<>();
     private static final HashMap<String, ArrayList<String>> MONITOR_TABLE_ROWS_MAP = new HashMap<>();
+    private static OvsdbConnectionService ovsdbConnectionService = new OvsdbConnectionService();
+    private static ListeningExecutorService executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(10));
+    private final Map<String, OVSDBBridge> bridgeMap = new HashMap<>();
 
     private OVSDBCache cache;
     private OvsdbClient client;
     private DatabaseSchema schema;
-    private boolean working = true;
+    private boolean working = false;
 
     // TODO:
     // 1. ovsdb connection maintainance
@@ -82,6 +85,16 @@ public class OVSDBManager implements OvsdbConnectionListener, OVSDBApi {
         ArrayList<String> tblBridgeMonitoredColumns = new ArrayList<>();
         tblBridgeMonitoredColumns.add(Constants.TBL_BRIDGE_COL_NAME);
         MONITOR_TABLE_ROWS_MAP.put(Constants.TBL_BRIDGE, tblBridgeMonitoredColumns);
+
+        ArrayList<String> tblInterfaceMonitoredColumns = new ArrayList<>();
+        tblInterfaceMonitoredColumns.add(Constants.TBL_INTERFACE_COL_OFPORT);
+        tblInterfaceMonitoredColumns.add(Constants.TBL_INTERFACE_COL_NAME);
+        MONITOR_TABLE_ROWS_MAP.put(Constants.TBL_INTERFACE, tblInterfaceMonitoredColumns);
+
+        ArrayList<String> tblPortMonitoredColumns = new ArrayList<>();
+        tblPortMonitoredColumns.add(Constants.TBL_PORT_COL_UUID);
+        tblPortMonitoredColumns.add(Constants.TBL_PORT_COL_NAME);
+        MONITOR_TABLE_ROWS_MAP.put(Constants.TBL_PORT, tblPortMonitoredColumns);
     }
 
     @Override
@@ -134,6 +147,8 @@ public class OVSDBManager implements OvsdbConnectionListener, OVSDBApi {
 
                 // Update cache because monitor is a sync interface and we set select initial as true.
                 cache.update(client.monitor(schema, monitorRequests, cache), schema);
+                // After initial data fetched, mark as working.
+                working = true;
             }
         });
     }
@@ -154,5 +169,31 @@ public class OVSDBManager implements OvsdbConnectionListener, OVSDBApi {
 
     public boolean isOVSDBConnectionWorking() {
         return working;
+    }
+
+    public OVSDBBridge getOVSDBBridge(String bridgeName) {
+        OVSDBBridge ovsdbBridge = bridgeMap.get(bridgeName);
+        if (ovsdbBridge == null) {
+            ovsdbBridge = new OVSDBBridge(this, bridgeName);
+            bridgeMap.put(bridgeName, ovsdbBridge);
+        }
+
+        return ovsdbBridge;
+    }
+
+    public ListeningExecutorService getExecutor() {
+        return executor;
+    }
+
+    public OvsdbClient getClient() {
+        return client;
+    }
+
+    public DatabaseSchema getDBSchema() {
+        return schema;
+    }
+
+    public void registerOVSDBChangeListener(OVSDBChangeListener listener) {
+        this.cache.registerChangeListener(listener);
     }
 }

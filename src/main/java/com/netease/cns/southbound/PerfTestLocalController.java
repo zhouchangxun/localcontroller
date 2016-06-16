@@ -11,11 +11,16 @@ import com.netease.cns.southbound.openflow.OFBridgeManager;
 import com.netease.cns.southbound.openflow.flow.Flow;
 import com.netease.cns.southbound.openflow.flow.FlowKey;
 import com.netease.cns.southbound.openflow.flow.FlowMatchHelper;
+import com.netease.cns.southbound.ovsdb.OVSDBBridge;
 import com.netease.cns.southbound.ovsdb.OVSDBManager;
+import com.netease.cns.southbound.ovsdb.event.*;
+import org.opendaylight.ovsdb.lib.notation.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Executors;
 
 public class PerfTestLocalController {
@@ -23,15 +28,11 @@ public class PerfTestLocalController {
     private static ListeningExecutorService pool = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(10));
 
     public static void main(String[] args) throws Exception {
-        final int ovsdbPort = 6634;
-        final InetAddress ovsdbAddr = InetAddress.getByName("10.166.224.11");
-        OFBridgeManager ofBridgeManager = new OFBridgeManager();
-        final OFBridge ofBridge = ofBridgeManager.getOFBridge("br-int");
-        OVSDBManager ovsdbManager = new OVSDBManager(ovsdbAddr, ovsdbPort);
-
         // Start a runnable which will push 1k flows once connection active,
         // we will then benchmark performance by using barrier.
-        if (true) {
+        if (false) {
+            OFBridgeManager ofBridgeManager = new OFBridgeManager();
+            final OFBridge ofBridge = ofBridgeManager.getOFBridge("br-int");
             pool.submit(new Runnable() {
                 public void run() {
                     while (true) {
@@ -78,24 +79,116 @@ public class PerfTestLocalController {
             });
         }
 
-        // Start a runnable which will create 4k ports once connection active
+        // Start a runnable which will create 2k ports once connection active
         // We should wrap a single port initialization as a transaction which
-        // will make 4k transactions in total, this will stress the library
+        // will make 2k transactions in total, this will stress the library
         // and also conform to the real scenario.
         // And also we should wait monitor all created port for it's openflow
         // port.
         if (true) {
+            int ovsdbPort = 6634;
+            InetAddress ovsdbAddr = InetAddress.getByName("10.166.224.11");
+            OVSDBManager ovsdbManager = new OVSDBManager(ovsdbAddr, ovsdbPort);
+
             pool.submit(new Runnable() {
                 public void run() {
                     while (true) {
                         if (ovsdbManager.isOVSDBConnectionWorking()) {
-                            // TODO: basic logic here.
+                            OVSDBBridge brInt = ovsdbManager.getOVSDBBridge("br-int");
+                            int PORT_NUM = 2000;
+                            Map<UUID, Object> ofPortMap = new HashMap<>();
+                            Map<UUID, Object> addedPortMap = new HashMap<>();
+                            Map<UUID, Object> removedPortMap = new HashMap<>();
 
-                            // 1. add 2k ports
-                            // 2. subscribe to port changes by registering to changes event.
-                            // 3. delete all ports and check local cache empty.
-                            // 4. report data and finish test.
+                            final long[] addTime = {0, 0}; // 0 is start time, 1 is finish time.
+                            final long[] removeTime = {0, 0}; // 0 is start time, 1 is finish time.
 
+                            ovsdbManager.registerOVSDBChangeListener(new OVSDBChangeListener() {
+                                @Override
+                                public void notify(BaseEvent event) {
+                                    if (event.getClass() == InterfaceOFPortAllocatedEvent.class) {
+                                        InterfaceOFPortAllocatedEvent interfaceOfPortAllocatedEvent = ((InterfaceOFPortAllocatedEvent) event);
+                                        LOG.info("New port have ofport allocated, port " +
+                                                interfaceOfPortAllocatedEvent.getPortName() +
+                                                ", ofport " + interfaceOfPortAllocatedEvent.getOfPort());
+
+                                        ofPortMap.put(interfaceOfPortAllocatedEvent.getUuid(), null);
+                                        LOG.info("Gather ofport num " + ofPortMap.size());
+                                        if (ofPortMap.size() == PORT_NUM) {
+                                            addTime[1] = System.currentTimeMillis();
+                                        }
+
+
+                                    } else if (event.getClass() == PortRemovedEvent.class) {
+                                        PortRemovedEvent portRemovedEvent = ((PortRemovedEvent) event);
+                                        LOG.info("Received port removed event, port " + portRemovedEvent.getPortName());
+                                        removedPortMap.put(portRemovedEvent.getUuid(), null);
+                                        if (removedPortMap.size() == PORT_NUM) {
+                                            removeTime[1] = System.currentTimeMillis();
+                                        }
+                                    } else if (event.getClass() == PortAddedEvent.class) {
+                                        PortAddedEvent portAddedEvent = ((PortAddedEvent) event);
+                                        LOG.info("Received port added event, port " + portAddedEvent.getPortName());
+                                        addedPortMap.put(portAddedEvent.getUuid(), null);
+                                    }
+
+                                }
+                            });
+
+                            LOG.info("OVSDB connection is ready, do test");
+
+                            addTime[0] = System.currentTimeMillis();
+                            LOG.info("OVSDB performance test start at " + addTime[0]);
+
+                            for (int i = 0; i < PORT_NUM; i++) {
+                                brInt.addPort("odlperftest" + i);
+                            }
+
+                            // Wait until all ports have ofport valid.
+                            while (true) {
+                                if ((addedPortMap.size() != PORT_NUM) || (ofPortMap.size() != PORT_NUM)) {
+                                    try {
+                                        LOG.info("Test Ports not fully collected");
+                                        Thread.sleep(50); // TODO: 50 ms second will downgrade performance....
+                                    } catch (InterruptedException e) {
+                                        LOG.info("OVSDB perf test is interrupted.");
+                                        break;
+                                    }
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            removeTime[0] = System.currentTimeMillis();
+                            LOG.info("Remove ports start at " + removeTime[0]);
+
+                            // Remove the added port by uuid.
+                            // HashMap entrySet is backed by HashMap itself, so add another removedPortMap
+                            // to check port removal.
+                            for (Map.Entry<UUID, Object> entry : addedPortMap.entrySet()) {
+                                brInt.removePort(entry.getKey());
+                            }
+
+                            // Wait until all ports have been removed.
+                            while (true) {
+                                if (removedPortMap.size() != PORT_NUM) {
+                                    try {
+                                        LOG.info("Test Ports not fully removed");
+                                        Thread.sleep(50); // TODO: 50 ms second will downgrade performance....
+                                    } catch (InterruptedException e) {
+                                        LOG.info("OVSDB perf test is interrupted.");
+                                        break;
+                                    }
+                                } else {
+                                    break;
+                                }
+                            }
+
+                            // Report test result.
+                            LOG.info("OVSDB port add performance finished at " + addTime[1]);
+                            LOG.info("OVSDB port add rate is " + 1000 * ((float) PORT_NUM) / (float) (addTime[1] - addTime[0]));
+                            LOG.info("OVSDB port remove performance test finished at " + removeTime[1]);
+                            LOG.info("OVSDB port remove rate is " + 1000 * ((float) PORT_NUM) / (float) (removeTime[1] - removeTime[0]));
                             break;
                         } else {
                             LOG.info("OVSDB connection is not ready, sleeping...");

@@ -7,8 +7,8 @@ import org.opendaylight.ovsdb.lib.schema.DatabaseSchema;
  * Created by hzzhangdongya on 16-6-15.
  */
 public class OpenvSwitchTableUpdateHandler extends TableUpdateHandler {
-    public OpenvSwitchTableUpdateHandler() {
-        super();
+    public OpenvSwitchTableUpdateHandler(OVSDBCache cache) {
+        super(cache);
     }
 
     @Override
