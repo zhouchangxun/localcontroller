@@ -37,3 +37,7 @@ passive mode and send echo probe and detect lost of connection.
 Make sure the program have privilege to access br-XXX.mgmt socket
 
 sudo java -jar out/artifacts/localcontroller_jar/localcontroller.jar
+
+# TODO
+
+synchronization issue between threads
