@@ -40,4 +40,10 @@ sudo java -jar out/artifacts/localcontroller_jar/localcontroller.jar
 
 # TODO
 
-synchronization issue between threads
+## synchronization issue between threads
+
+# OTHERS
+
+## JsonRPCDecoder maxFrameLength warning
+
+seems no functionality issue.
