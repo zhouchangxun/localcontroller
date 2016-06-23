@@ -44,6 +44,8 @@ public class OVSDBBridge {
         this.cache = ovsdbManager.getCache();
     }
 
+    // TODO: refer to ovs-vsctl and implement necessary condition check for next_cfg
+    // and bridge name and .etc.
     private void createBridge() {
         OvsdbClient client = ovsdbManager.getClient();
         DatabaseSchema dbSchema = ovsdbManager.getDBSchema();
@@ -54,6 +56,27 @@ public class OVSDBBridge {
         bridge.setName(bridgeName);
 
         tb.add(op.insert(bridge.getSchema()).withId("BridgeToBeAdded").value(bridge.getNameColumn()));
+
+        String interfaceUuid = "InterfaceToBeAdded";
+        Interface ovsInterface =
+                TyperUtils.getTypedRowWrapper(dbSchema, Interface.class);
+        ovsInterface.setType("internal"); // TODO: support others...
+        ovsInterface.setName(bridgeName);
+        tb.add(op.insert(ovsInterface).withId(interfaceUuid));
+
+        // Add a port with the name of the bridge which can be used as routed port if necessary,
+        // this make behavior same as ovs-vsctl.
+        String portUuid = "PortToBeAdded";
+        Port port = TyperUtils.getTypedRowWrapper(dbSchema, Port.class);
+        port.setName(bridgeName);
+        port.setInterfaces(Sets.newHashSet(new UUID(interfaceUuid)));
+        tb.add(op.insert(port).withId(portUuid));
+
+        bridge.setPorts(Sets.newHashSet(new UUID(portUuid)));
+        tb.add(op.mutate(bridge.getSchema())
+                .addMutation(bridge.getPortsColumn().getSchema(),
+                        Mutator.INSERT, bridge.getPortsColumn().getData())
+                .where(bridge.getNameColumn().getSchema().opEqual(bridge.getNameColumn().getData())).build());
 
         OpenVSwitch openVSwitch = TyperUtils.getTypedRowWrapper(dbSchema, OpenVSwitch.class);
         openVSwitch.setBridges(Sets.newHashSet(new UUID("BridgeToBeAdded")));
