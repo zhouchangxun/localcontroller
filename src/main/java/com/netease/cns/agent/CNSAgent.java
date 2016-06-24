@@ -1,16 +1,12 @@
 package com.netease.cns.agent;
 
-import com.netease.cns.agent.common.Constants;
+import com.netease.cns.agent.dstore.ZKBackend;
 import com.netease.cns.agent.ovsdb.OVSDBBridge;
 import com.netease.cns.agent.ovsdb.OVSDBManager;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.RetryNTimes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
-import java.net.URL;
 import java.net.UnknownHostException;
 
 /**
@@ -38,12 +34,8 @@ public class CNSAgent {
         // Init ovsdbmanager and start ovsdb manager.
         // Init ofbr(try create br if not exists) and start connection, then monitor changes of ofport.
 
-        // Currently only care about the zk schema and use that to caculate flows for br-int
-
-        URL jaasURL = CNSMain.class.getClassLoader().getResource(Constants.JAAS_PROP_FILE_REL_PATH);
-        System.setProperty(Constants.JAAS_PROP, jaasURL.getPath());
-        CuratorFramework zkClient = CuratorFrameworkFactory.newClient(Constants.ZK_SERVER_HOST, new RetryNTimes(10, 5000));
-        zkClient.start();
+        // TODO: refer to MIDOLMAN and define a CNSAgentService which encloses flowservices/ovsdbservice
+        // and etc...
 
         int ovsdbPort = 6634;
         InetAddress ovsdbAddr;
@@ -58,5 +50,13 @@ public class CNSAgent {
         OVSDBBridge brInt = ovsdbManager.getOVSDBBridge("br-int1");
         brInt.ensureExisted();
         LOG.info("Ensure br-int1 finished");
+
+        // TODO: temp use abstractservice to block main thread, later we should use CNSAgentService to block main
+        // thread.
+        ZKBackend backend = new ZKBackend();
+        backend.startAsync().awaitRunning(); // start the backend and wait until running.
+        backend.awaitTerminated(); // If ZK backend exits, we die...
+
+        LOG.info("We died...");
     }
 }

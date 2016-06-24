@@ -24,7 +24,6 @@
     <orderEntry type="library" name="Maven: org.opendaylight.controller:sal-common-util:1.3.2-Beryllium-SR2" level="project" />
     <orderEntry type="library" name="Maven: io.netty:netty-handler:4.0.33.Final" level="project" />
     <orderEntry type="library" name="Maven: io.netty:netty-codec:4.0.33.Final" level="project" />
-    <orderEntry type="library" name="Maven: com.google.guava:guava:18.0" level="project" />
     <orderEntry type="library" name="Maven: org.opendaylight.controller:config-api:0.4.2-Beryllium-SR2" level="project" />
     <orderEntry type="library" name="Maven: com.google.code.findbugs:jsr305:3.0.0" level="project" />
     <orderEntry type="library" name="Maven: org.osgi:org.osgi.core:5.0.0" level="project" />
@@ -73,6 +72,8 @@
     <orderEntry type="library" name="Maven: org.apache.zookeeper:zookeeper:3.4.6" level="project" />
     <orderEntry type="library" name="Maven: jline:jline:0.9.94" level="project" />
     <orderEntry type="library" name="Maven: io.netty:netty:3.7.0.Final" level="project" />
+    <orderEntry type="library" name="Maven: com.google.guava:guava:19.0" level="project" />
+    <orderEntry type="library" name="Maven: io.reactivex:rxjava:1.1.6" level="project" />
     <orderEntry type="library" name="Maven: io.netty:netty-transport-native-epoll:linux-x86_64:4.0.33.Final" level="project" />
     <orderEntry type="library" name="Maven: io.netty:netty-common:4.0.33.Final" level="project" />
     <orderEntry type="library" name="Maven: io.netty:netty-buffer:4.0.33.Final" level="project" />
