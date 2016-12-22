@@ -1,6 +1,6 @@
 package com.netease.cns.agent;
 
-import com.netease.cns.agent.dstore.ZKBackend;
+//import com.netease.cns.agent.dstore.ZKBackend;
 import com.netease.cns.agent.ovsdb.OVSDBBridge;
 import com.netease.cns.agent.ovsdb.OVSDBManager;
 import org.slf4j.Logger;
@@ -37,25 +37,25 @@ public class CNSAgent {
         // TODO: refer to MIDOLMAN and define a CNSAgentService which encloses flowservices/ovsdbservice
         // and etc...
 
-        int ovsdbPort = 6634;
+        int ovsdbPort = 6640;
         InetAddress ovsdbAddr;
         try {
-            ovsdbAddr = InetAddress.getByName("10.166.224.11");
+            ovsdbAddr = InetAddress.getByName("10.157.0.144");
         } catch (UnknownHostException e) {
             e.printStackTrace();
             return;
         }
 
         final OVSDBManager ovsdbManager = new OVSDBManager(ovsdbAddr, ovsdbPort);
-        OVSDBBridge brInt = ovsdbManager.getOVSDBBridge("br-int1");
+        OVSDBBridge brInt = ovsdbManager.getOVSDBBridge("br-int");
         brInt.ensureExisted();
         LOG.info("Ensure br-int1 finished");
 
         // TODO: temp use abstractservice to block main thread, later we should use CNSAgentService to block main
         // thread.
-        ZKBackend backend = new ZKBackend();
-        backend.startAsync().awaitRunning(); // start the backend and wait until running.
-        backend.awaitTerminated(); // If ZK backend exits, we die...
+        //ZKBackend backEnd = new ZKBackend();
+        //backEnd.startAsync().awaitRunning(); // start the backend and wait until running.
+        //backEnd.awaitTerminated(); // If ZK backend exits, we die...
 
         LOG.info("We died...");
     }

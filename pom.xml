@@ -33,6 +33,27 @@
                     <target>1.8</target>
                 </configuration>
             </plugin>
+<plugin>
+           <groupId>org.apache.maven.plugins</groupId>
+           <artifactId>maven-shade-plugin</artifactId>
+           <version>1.2.1</version>
+           <executions>
+                      <execution>
+               <phase>package</phase>
+               <goals>
+                     <goal>shade</goal>
+               </goals>
+               <configuration>
+                     <transformers>
+                       <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>com.netease.cns.agent.CNSMain</mainClass>
+                      </transformer>
+                     </transformers>
+               </configuration>
+                </execution>
+           </executions>
+        </plugin>
+
         </plugins>
     </build>
 
@@ -40,17 +61,17 @@
         <dependency>
             <groupId>org.opendaylight.openflowjava</groupId>
             <artifactId>openflow-protocol-impl</artifactId>
-            <version>0.7.2-Beryllium-SR2</version>
+            <version>0.8.1-Boron-SR1</version>
         </dependency>
         <dependency>
             <groupId>org.opendaylight.ovsdb</groupId>
             <artifactId>library</artifactId>
-            <version>1.2.3-Beryllium-SR2</version>
+            <version>1.3.1-Boron-SR1</version>
         </dependency>
         <dependency>
             <groupId>org.opendaylight.ovsdb</groupId>
             <artifactId>schema.openvswitch</artifactId>
-            <version>1.2.3-Beryllium-SR2</version>
+            <version>1.3.1-Boron-SR1</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -81,7 +102,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-transport-native-epoll</artifactId>
-            <version>4.0.33.Final</version>
+            <version>4.0.37.Final</version>
             <!--We should always use linux-x86-64 without using os-maven-plugin
               because our server will always be linux-x86_64, we should ship
               x86_64 JNI libraries... -->

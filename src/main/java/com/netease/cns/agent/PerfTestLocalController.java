@@ -86,8 +86,8 @@ public class PerfTestLocalController {
         // And also we should wait monitor all created port for it's openflow
         // port.
         if (true) {
-            int ovsdbPort = 6634;
-            InetAddress ovsdbAddr = InetAddress.getByName("10.166.224.11");
+            int ovsdbPort = 6640;
+            InetAddress ovsdbAddr = InetAddress.getByName("10.157.0.144");
             final OVSDBManager ovsdbManager = new OVSDBManager(ovsdbAddr, ovsdbPort);
 
             pool.submit(new Runnable() {
@@ -95,7 +95,7 @@ public class PerfTestLocalController {
                     while (true) {
                         if (ovsdbManager.isOVSDBConnectionWorking()) {
                             OVSDBBridge brInt = ovsdbManager.getOVSDBBridge("br-int");
-                            int PORT_NUM = 2000;
+                            int PORT_NUM = 200;
                             Map<UUID, Object> ofPortMap = new HashMap<>();
                             Map<UUID, Object> addedPortMap = new HashMap<>();
                             Map<UUID, Object> removedPortMap = new HashMap<>();

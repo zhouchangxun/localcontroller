@@ -55,23 +55,19 @@ public class OVSDBManager implements OvsdbConnectionListener {
         setupMonitoredTables();
         cache = new OVSDBCache();
 
+        LOG.info("Connection to ovsdb server: "+ovsdbServerAddr+"." + ovsdbServerPort);
+        OvsdbClient client = ovsdbConnectionService.connect(ovsdbServerAddr, ovsdbServerPort);
+        if (client != null) {
+            LOG.info("Connection to ovsdb server actively successfully...");
+            // Actively connect(synchronous call) will not be notified due to implementation of ovsdb library.
+            // Refer to: https://wiki.opendaylight.org/view/OVSDB:OVSDB_Library_Developer_Guide
+            //ovsdbConnectionManager.getOvsdbConnectionServer().registerConnectionListener(ovsdbConnectionManager);
+            connected(client);
+        } else {
+            LOG.error("Connection to ovsdb server actively failed...");
+            // TODO: restart connect strategy?
+        }
         // Do initial connect.
-        executor.submit(new Runnable() {
-            @Override
-            public void run() {
-                OvsdbClient client = ovsdbConnectionService.connect(ovsdbServerAddr, ovsdbServerPort);
-                if (client != null) {
-                    LOG.info("Connection to ovsdb server actively successfully...");
-                    // Actively connect(synchronous call) will not be notified due to implementation of ovsdb library.
-                    // Refer to: https://wiki.opendaylight.org/view/OVSDB:OVSDB_Library_Developer_Guide
-                    //ovsdbConnectionManager.getOvsdbConnectionServer().registerConnectionListener(ovsdbConnectionManager);
-                    connected(client);
-                } else {
-                    LOG.error("Connection to ovsdb server actively failed...");
-                    // TODO: restart connect strategy?
-                }
-            }
-        });
     }
 
     private void setupMonitoredTables() {
@@ -140,7 +136,7 @@ public class OVSDBManager implements OvsdbConnectionListener {
                         continue;
                     }
 
-                    MonitorRequestBuilder<GenericTableSchema> monitorBuilder = MonitorRequestBuilder.builder(tableSchema);
+                    MonitorRequestBuilder<GenericTableSchema> monitorBuilder = new MonitorRequestBuilder(tableSchema);
                     for (String columnName: monitoredColumns) {
                         monitorBuilder.addColumn(columnName);
                     }
